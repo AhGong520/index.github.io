@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLMརིག་ནུས</title>
+    <!-- 引入 Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 使用 Inter 字体 */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        
+        /* 确保 body 覆盖整个视口高度 */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* 统一的浅灰色背景 */
+            height: 100vh; /* 强制占据整个视口高度 */
+        }
+        
+        /* 隐藏滚动条但保留滚动功能 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        /* 自定义加载指示器 */
+        .loading-dots div {
+            width: 8px;
+            height: 8px;
+            background-color: #3b82f6;
+            border-radius: 50%;
+            margin: 0 4px;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .loading-dots div:nth-child(1) { animation-delay: -0.32s; }
+        .loading-dots div:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- 顶部设置区域 -->
+    <header class="bg-white shadow-md p-4 sticky top-0 z-10">
+        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between space-y-3 sm:space-y-0">
+            <h1 class="text-2xl font-bold text-gray-800">LLMརིག་ནུས</h1>
+            <button id="settingsBtn" class="bg-gray-100 text-gray-700 hover:bg-gray-200 font-medium py-2 px-4 rounded-lg transition duration-150 shadow-sm">
+                ⚙️ API Key 
+            </button>
+        </div>
+    </header>
+
+    <!-- 设置模态框 -->
+    <div id="settingsModal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-lg">
+            <h2 class="text-xl font-semibold mb-4 text-gray-800">API Key 管理</h2>
+            <p class="text-sm text-red-600 mb-4">注意: Key 仅存储在您的浏览器 (localStorage) 中，以保护隐私。但前端调用可能存在 CORS 限制。</p>
+
+            <label for="modelSelect" class="block text-sm font-medium text-gray-700 mb-2">选择要配置的模型</label>
+            <select id="modelSelect" class="w-full p-2 border border-gray-300 rounded-lg mb-4 focus:ring-blue-500 focus:border-blue-500">
+                <option value="gemini">Google Gemini 2.5 Pro (推荐)</option>
+                <option value="chatgpt">OpenAI ChatGPT</option>
+                <option value="claude">Anthropic Claude</option>
+                <option value="grok">Grok</option>
+                <option value="deepseek">DeepSeek</option>
+            </select>
+
+            <label for="apiKeyInput" class="block text-sm font-medium text-gray-700 mb-2">输入 API Key</label>
+            <input type="password" id="apiKeyInput" placeholder="请输入您的 Key" class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-blue-500 focus:border-blue-500">
+            
+            <div class="flex justify-end space-x-3">
+                <button id="saveKeyBtn" class="bg-blue-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-md">保存 Key</button>
+                <button id="closeModalBtn" class="bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg hover:bg-gray-400 transition duration-150">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主聊天区域 -->
+    <!-- 调整 max-w-4xl 到 max-w-6xl，让聊天区域更宽广 -->
+    <main class="flex-grow w-full mx-auto p-4 flex flex-col max-w-6xl">
+        <!-- 历史记录/输出区域 -->
+        <!-- 移除 h-[70vh]，使用 flex-grow 动态填充空间，并设置 min-h 确保手机端可用 -->
+        <div id="chatHistory" class="flex-grow bg-white p-4 sm:p-6 rounded-xl shadow-lg mb-4 overflow-y-auto no-scrollbar min-h-[50vh]">
+            <!-- 聊天记录将在此处动态生成 -->
+            <div class="text-center text-gray-500 py-8">
+                "LLM སྡུད་འགྲིག་གཉེར་ཆས་སྤྱོད་པར་དགའ་བསུ་ཞུ། སྒོ་བྱང་གི་གཡས་ཟུར་གྱི་ "API Key སྒྲིག་སྟངས" ཞེས་པར་བསྣུན་ཏེ་ཁྱེད་ཀྱི་ Key སྒྲིག་འགོད་བྱེད་རྗེས། གླེང་མོ་འགོ་འཛུགས་གནང་ཐུབ།"
+            </div>
+        </div>
+
+        <!-- 输入区域 -->
+        <div class="bg-white p-4 rounded-xl shadow-lg border border-gray-200">
+            <div class="flex items-center space-x-3 mb-3">
+                <label for="modelSelector" class="text-sm font-medium text-gray-700 hidden sm:block">དཔེ་གཞི་འདེམས་པ།</label>
+                <select id="modelSelector" class="flex-shrink-0 p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <option value="gemini">Gemini 2.5 Pro</option>
+                    <option value="chatgpt">ChatGPT</option>
+                    <option value="claude">Claude</option>
+                    <option value="grok">Grok</option>
+                    <option value="deepseek">DeepSeek</option>
+                </select>
+                <!-- API Key 状态显示：移除了默认的 "Gemini Key" 文本 -->
+                <div id="apiKeyStatus" class="flex-grow text-xs font-semibold text-red-500">
+                </div>
+            </div>
+            <div class="flex space-x-3">
+                <!-- 占位符已更改为藏文 -->
+                <textarea id="userInput" class="flex-grow p-3 border border-gray-300 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500" rows="3" placeholder="ཁྱེད་ཀྱི་དྲི་བ་ནང་འཇུག་གནང་རོགས།" onkeydown="handleKey(event)"></textarea>
+                <button id="sendBtn" class="flex-shrink-0 bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 transition duration-150 shadow-md flex items-center justify-center disabled:opacity-50" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 transform rotate-90">
+                        <path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.547 60.547 0 0 0 18.44-8.895.75.75 0 0 0 0-1.218A60.547 60.547 0 0 0 3.478 2.405Z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 全局变量和元素引用
+        const apiKeyMap = {}; // 存储不同模型的 API Key
+        const models = ['gemini', 'chatgpt', 'claude', 'grok', 'deepseek'];
+        let chatHistoryData = []; // 基础对话历史记录
+        let isGenerating = false; // 防止重复点击
+
+        const elements = {
+            settingsBtn: document.getElementById('settingsBtn'),
+            settingsModal: document.getElementById('settingsModal'),
+            modelSelect: document.getElementById('modelSelect'),
+            apiKeyInput: document.getElementById('apiKeyInput'),
+            saveKeyBtn: document.getElementById('saveKeyBtn'),
+            closeModalBtn: document.getElementById('closeModalBtn'),
+            modelSelector: document.getElementById('modelSelector'),
+            apiKeyStatus: document.getElementById('apiKeyStatus'),
+            userInput: document.getElementById('userInput'),
+            sendBtn: document.getElementById('sendBtn'),
+            chatHistory: document.getElementById('chatHistory'),
+        };
+
+        // --- 初始化和 Key 管理 ---
+
+        /**
+         * 从 localStorage 加载所有 API Key
+         */
+        function loadApiKeys() {
+            models.forEach(model => {
+                const key = localStorage.getItem(`llm_key_${model}`);
+                if (key) {
+                    apiKeyMap[model] = key;
+                }
+            });
+            updateApiKeyStatus();
+        }
+
+        /**
+         * 更新 Key 状态显示和发送按钮状态
+         */
+        function updateApiKeyStatus() {
+            const selectedModel = elements.modelSelector.value;
+            const hasKey = !!apiKeyMap[selectedModel];
+            
+            if (hasKey) {
+                // 简洁配置成功的提示
+                elements.apiKeyStatus.textContent = `${selectedModel} Key 已配置`; 
+                elements.apiKeyStatus.className = 'flex-grow text-xs font-semibold text-green-600';
+                elements.sendBtn.disabled = false;
+            } else {
+                // 简洁配置缺失的提示 (已移除“缺失”二字)
+                elements.apiKeyStatus.textContent = `🚨 ${selectedModel} Key`; 
+                elements.apiKeyStatus.className = 'flex-grow text-xs font-semibold text-red-500';
+                elements.sendBtn.disabled = true;
+            }
+
+            // 针对设置模态框，同步显示当前选择的 Key
+            const currentModalModel = elements.modelSelect.value;
+            elements.apiKeyInput.value = apiKeyMap[currentModalModel] || '';
+        }
+
+        // --- 模态框事件处理 ---
+
+        elements.settingsBtn.onclick = () => {
+            elements.settingsModal.classList.remove('hidden');
+            elements.settingsModal.classList.add('flex');
+            // 确保模态框打开时，输入框显示当前选择模型的 Key
+            elements.modelSelect.value = elements.modelSelector.value;
+            elements.apiKeyInput.value = apiKeyMap[elements.modelSelect.value] || '';
+        };
+
+        elements.closeModalBtn.onclick = () => {
+            elements.settingsModal.classList.add('hidden');
+            elements.settingsModal.classList.remove('flex');
+        };
+
+        elements.modelSelect.onchange = () => {
+            // 切换模型时，更新输入框内容
+            const selectedModel = elements.modelSelect.value;
+            elements.apiKeyInput.value = apiKeyMap[selectedModel] || '';
+        };
+
+        elements.saveKeyBtn.onclick = () => {
+            const model = elements.modelSelect.value;
+            const key = elements.apiKeyInput.value.trim();
+
+            if (key) {
+                localStorage.setItem(`llm_key_${model}`, key);
+                apiKeyMap[model] = key;
+                alert(`成功保存 ${model} 的 API Key!`);
+            } else {
+                localStorage.removeItem(`llm_key_${model}`);
+                delete apiKeyMap[model];
+                alert(`已清除 ${model} 的 API Key.`);
+            }
+            
+            elements.settingsModal.classList.add('hidden');
+            elements.settingsModal.classList.remove('flex');
+            updateApiKeyStatus();
+        };
+
+        // 监听主选择器切换
+        elements.modelSelector.onchange = updateApiKeyStatus;
+
+
+        // --- UI 渲染函数 ---
+
+        /**
+         * 渲染新的聊天消息到界面
+         * @param {string} role 'user' 或 'model'
+         * @param {string} content 消息内容
+         * @param {string} modelName 使用的模型名称
+         */
+        function renderMessage(role, content, modelName = '') {
+            // 如果历史区域只有欢迎信息，则清除
+            if (elements.chatHistory.firstElementChild && elements.chatHistory.firstElementChild.classList.contains('text-center')) {
+                elements.chatHistory.innerHTML = '';
+            }
+            
+            const messageDiv = document.createElement('div');
+            const roleText = role === 'user' ? '您' : (modelName ? modelName : '模型');
+            const bgColor = role === 'user' ? 'bg-blue-100' : 'bg-gray-50';
+            const alignment = role === 'user' ? 'self-end' : 'self-start';
+            const textColor = role === 'user' ? 'text-gray-800' : 'text-gray-700';
+            const padding = 'p-3 rounded-xl max-w-[90%] sm:max-w-[75%] shadow-md whitespace-pre-wrap';
+
+            messageDiv.className = `flex flex-col mb-4 ${alignment}`;
+            messageDiv.innerHTML = `
+                <div class="text-xs font-medium text-gray-500 mb-1">${roleText}</div>
+                <div class="${bgColor} ${textColor} ${padding}">${content}</div>
+            `;
+            elements.chatHistory.appendChild(messageDiv);
+            elements.chatHistory.scrollTop = elements.chatHistory.scrollHeight; // 自动滚动
+            return messageDiv.querySelector('div:last-child'); // 返回内容块
+        }
+
+        /**
+         * 渲染加载指示器
+         * @param {string} modelName 
+         */
+        function renderLoadingIndicator(modelName) {
+            // 清除欢迎信息
+            if (elements.chatHistory.firstElementChild && elements.chatHistory.firstElementChild.classList.contains('text-center')) {
+                elements.chatHistory.innerHTML = '';
+            }
+
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'loadingIndicator';
+            loadingDiv.className = 'flex flex-col mb-4 self-start';
+            loadingDiv.innerHTML = `
+                <div class="text-xs font-medium text-gray-500 mb-1">${modelName} (加载中...)</div>
+                <div class="bg-gray-100 p-3 rounded-xl shadow-md max-w-[90%] sm:max-w-[75%]">
+                    <div class="loading-dots flex">
+                        <div></div><div></div><div></div>
+                    </div>
+                </div>
+            `;
+            elements.chatHistory.appendChild(loadingDiv);
+            elements.chatHistory.scrollTop = elements.chatHistory.scrollHeight;
+        }
+
+        /**
+         * 移除加载指示器并用最终结果替换
+         * @param {string} finalContent 
+         * @param {string} modelName 
+         */
+        function removeLoadingIndicator(finalContent, modelName) {
+            const loadingDiv = document.getElementById('loadingIndicator');
+            if (loadingDiv) {
+                loadingDiv.innerHTML = `
+                    <div class="text-xs font-medium text-gray-500 mb-1">${modelName}</div>
+                    <div class="bg-gray-50 text-gray-700 p-3 rounded-xl shadow-md max-w-[90%] sm:max-w-[75%] whitespace-pre-wrap">${finalContent}</div>
+                `;
+                loadingDiv.id = ''; // 清除 ID
+            }
+            elements.chatHistory.scrollTop = elements.chatHistory.scrollHeight;
+        }
+
+        // --- 核心 API 调用逻辑 ---
+
+        /**
+         * 带有指数退避的 Fetch
+         */
+        async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) {
+                         // 对于 4xx/5xx 错误，抛出错误但允许重试（可选，取决于模型 API 的具体行为）
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response;
+                } catch (error) {
+                    if (i < retries - 1) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        delay *= 2; // 指数退避
+                    } else {
+                        throw error;
+                    }
+                }
+            }
+        }
+
+        /**
+         * 调用选定的大语言模型 API
+         * @param {string} modelType - 模型类型 (e.g., 'gemini', 'chatgpt')
+         * @param {string} prompt - 用户输入
+         * @returns {Promise<string>} - 模型返回的文本内容
+         */
+        async function callAPI(modelType, prompt) {
+            const apiKey = apiKeyMap[modelType];
+            let apiUrl = '';
+            let payload = {};
+            let responseText = '';
+            
+            if (!apiKey) {
+                throw new Error(`请先为 ${modelType} 配置 API Key。`);
+            }
+
+            // 统一的历史对话格式 (仅包含用户最新的提示)
+            const conversation = [
+                ...chatHistoryData.filter(m => m.model === modelType).slice(-5), // 仅保留最后 5 轮历史
+                { role: "user", parts: [{ text: prompt }] }
+            ];
+
+            // --- Gemini API (使用推荐的 gemini-2.5-flash-preview-05-20) ---
+            if (modelType === 'gemini') {
+                // 注意: 在 Canvas 环境中，如果 apiKey 为空字符串，系统会自动注入。
+                // 在 Github Pages 上，您需要确保 Key 存在。
+                apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                
+                // 将历史记录转换为 Gemini 格式
+                const geminiContents = conversation.map(msg => ({
+                    role: msg.role === 'user' ? 'user' : 'model',
+                    parts: msg.parts
+                }));
+
+                payload = {
+                    contents: geminiContents,
+                };
+            } 
+            
+            // --- Placeholder/Proxy Required APIs ---
+            else if (modelType === 'chatgpt') {
+                // WARNING: 纯前端调用会触发 CORS 错误，并且暴露您的 Key。
+                // 生产环境应通过您自建的后端/代理转发 API Key。
+                apiUrl = "https://api.openai.com/v1/chat/completions"; 
+                
+                // 转换为 ChatGPT 消息格式
+                const gptMessages = conversation.map(msg => ({
+                    role: msg.role === 'user' ? 'user' : 'assistant',
+                    content: msg.parts[0].text
+                }));
+
+                payload = {
+                    model: "gpt-4o-mini", // 推荐使用高效模型
+                    messages: gptMessages,
+                };
+
+                // 由于 CORS，我们在此模拟一个结果，而不是实际调用
+                // 您需要确保您的 GitHub Pages URL 被 OpenAI 允许 (通常不可能)
+                console.warn("⚠️ 正在尝试调用 ChatGPT API。如果发生 CORS 错误，请在后端设置代理。");
+                await new Promise(r => setTimeout(r, 1500)); // 模拟网络延迟
+                responseText = `[${modelType} 模拟响应] 由于 CORS 限制，前端直接调用 ${modelType} 失败或被阻止。您发送了："${prompt}"。请部署后端代理。`;
+                return responseText;
+            }
+
+            else if (modelType === 'claude') {
+                // WARNING: 纯前端调用会触发 CORS 错误。
+                apiUrl = "https://api.anthropic.com/v1/messages"; 
+                
+                // 转换为 Claude 消息格式
+                const claudeMessages = conversation.map(msg => ({
+                    role: msg.role === 'user' ? 'user' : 'assistant',
+                    content: msg.parts[0].text
+                }));
+
+                payload = {
+                    model: "claude-3-haiku-20240307",
+                    max_tokens: 1024,
+                    messages: claudeMessages,
+                };
+
+                // 模拟结果
+                console.warn("⚠️ 正在尝试调用 Claude API。如果发生 CORS 错误，请在后端设置代理。");
+                await new Promise(r => setTimeout(r, 1500));
+                responseText = `[${modelType} 模拟响应] 由于 CORS 限制，前端直接调用 ${modelType} 失败或被阻止。您发送了："${prompt}"。请部署后端代理。`;
+                return responseText;
+            }
+
+            else if (modelType === 'grok' || modelType === 'deepseek') {
+                // Grok 和 DeepSeek 也需要后端代理
+                console.warn(`⚠️ 正在尝试调用 ${modelType} API。通常需要后端代理。`);
+                await new Promise(r => setTimeout(r, 1500));
+                responseText = `[${modelType} 模拟响应] 由于 ${modelType} API 的安全和 CORS 限制，您几乎肯定需要一个后端代理服务器来处理此请求。您发送了："${prompt}"。`;
+                return responseText;
+            }
+            // --- End Placeholder/Proxy Required APIs ---
+            
+            
+            // --- 实际 Fetch 逻辑 (主要针对 Gemini) ---
+            if (modelType === 'gemini') {
+                const fetchOptions = {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                };
+
+                try {
+                    const response = await fetchWithRetry(apiUrl, fetchOptions);
+                    const result = await response.json();
+
+                    if (result.candidates && result.candidates.length > 0) {
+                        responseText = result.candidates[0].content.parts[0].text || "模型返回内容为空。";
+                    } else if (result.error) {
+                         responseText = `API 错误: ${result.error.message}`;
+                    } else {
+                         responseText = "未知 API 错误。请检查控制台。";
+                    }
+                } catch (error) {
+                    responseText = `网络或 API 调用失败: ${error.message}. 请检查您的 Key 或 CORS 设置。`;
+                }
+            }
+
+
+            // 更新聊天历史，只有在非模拟情况下才更新
+            if (!responseText.includes("[模拟响应]")) {
+                chatHistoryData.push({ 
+                    role: 'model', 
+                    model: modelType,
+                    parts: [{ text: responseText }] 
+                });
+            }
+
+            return responseText;
+        }
+
+
+        // --- 主发送流程 ---
+
+        async function handleSend() {
+            if (isGenerating) return;
+
+            const prompt = elements.userInput.value.trim();
+            if (!prompt) return;
+
+            const selectedModel = elements.modelSelector.value;
+            const apiKey = apiKeyMap[selectedModel];
+
+            if (!apiKey) {
+                alert(`请先在设置中配置 ${selectedModel} 的 API Key.`);
+                return;
+            }
+
+            elements.userInput.value = '';
+            isGenerating = true;
+            elements.sendBtn.disabled = true;
+
+            // 1. 渲染用户消息并添加到历史
+            renderMessage('user', prompt);
+            chatHistoryData.push({ 
+                role: 'user', 
+                model: selectedModel,
+                parts: [{ text: prompt }] 
+            });
+
+            // 2. 渲染加载指示器
+            renderLoadingIndicator(selectedModel);
+
+            let modelResponse = '';
+            try {
+                // 3. 调用 API
+                modelResponse = await callAPI(selectedModel, prompt);
+            } catch (error) {
+                console.error("API 调用失败:", error);
+                modelResponse = `操作失败: ${error.message}`;
+            } finally {
+                // 4. 移除加载并显示结果
+                removeLoadingIndicator(modelResponse, selectedModel);
+                isGenerating = false;
+                elements.sendBtn.disabled = false;
+            }
+        }
+
+        // 绑定事件
+        elements.sendBtn.addEventListener('click', handleSend);
+        function handleKey(event) {
+            // 手机端通常不使用 Ctrl+Enter，只监听 Enter
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                handleSend();
+            }
+        }
+
+        // --- 页面初始化 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadApiKeys();
+        });
+
+    </script>
+</body>
+</html>
